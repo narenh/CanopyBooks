@@ -25,6 +25,8 @@ nonisolated struct Chapter: Sendable {
 
 /// A bundled book: audio, forced-alignment JSON and cover art.
 nonisolated struct Audiobook: Sendable {
+    /// Stable key for per-book saved state.
+    let id: String
     let title: String
     let author: String
     let audioResource: String
@@ -33,6 +35,7 @@ nonisolated struct Audiobook: Sendable {
     let coverAsset: String
 
     static let hobbit = Audiobook(
+        id: "hobbit",
         title: "The Hobbit",
         author: "J. R. R. Tolkien",
         audioResource: "The Hobbit",

@@ -34,6 +34,12 @@ final class AudiobookPlayer {
 
     var chapter: Chapter { chapters[chapterIndex] }
 
+    /// Where this book was left off, saved as playback moves.
+    private var savedPosition: Double {
+        get { UserDefaults.standard.double(forKey: "position.\(book.id)") }
+        set { UserDefaults.standard.set(newValue, forKey: "position.\(book.id)") }
+    }
+
     init(book: Audiobook) {
         self.book = book
         (sentences, chapters) = book.loadText()
@@ -67,6 +73,11 @@ final class AudiobookPlayer {
         hasStarted = true
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
         nowPlaying.becomeActiveIfPossible(completion: nil)
+        // Resume at the start of the sentence that was playing, rather than mid-word.
+        if let index = sentences.index(at: savedPosition) {
+            seek(to: sentences[index].start - 0.1)
+            setActive(index)
+        }
         #if DEBUG
         // `xcrun simctl launch <device> com.naren.CanopyBooks -startAt 1000` starts 1000 s in.
         let startAt = UserDefaults.standard.double(forKey: "startAt")
@@ -111,7 +122,11 @@ final class AudiobookPlayer {
     private func sync(to seconds: Double) {
         setActive(sentences.index(at: seconds + Self.highlightLead))
         let whole = seconds.rounded(.down)
-        if whole != elapsed { elapsed = whole }
+        if whole != elapsed {
+            elapsed = whole
+            // Not before playback starts: the player reports 0 before the saved position is restored.
+            if hasStarted { savedPosition = seconds }
+        }
         let playing = player.rate != 0
         if playing != isPlaying { isPlaying = playing }
     }

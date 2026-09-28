@@ -70,13 +70,9 @@ struct PlayerScreen: View {
         .defaultFocus($focus, .playPause)
         .onPlayPauseCommand(perform: model.togglePlayPause)
         .onExitCommand(perform: exitAction)
+        // Focus is never moved to follow playback: a programmatic move can land just after a
+        // remote press and undo it. The text still follows; the focused line drifts up with it.
         .onChange(of: focus, focusChanged)
-        .onChange(of: model.activeIndex) {
-            // Following playback: keep focus on the sentence being read.
-            if !isBrowsing, focus?.isSentence == true {
-                focus = .sentence(model.activeIndex ?? 0)
-            }
-        }
         .task(id: textActivity) {
             // Idle in the text: focus goes back to play/pause so the highlight never lingers.
             // Browsing gets longer, to leave time to read.
@@ -101,15 +97,14 @@ struct PlayerScreen: View {
             return
         }
         let active = model.activeIndex ?? 0
-        if !fromText {
+        if !fromText, index != active {
             // Arriving from the controls lands on the sentence being read, not the nearest one.
-            if index != active { focus = .sentence(active) }
-            textActivity += 1
-        } else if isBrowsing || index != active {
-            // Moving up or down. (Focus following playback from line to line isn't user input.)
+            focus = .sentence(active)
+        } else if fromText, index != active {
+            // Moving up or down.
             isBrowsing = true
-            textActivity += 1
         }
+        textActivity += 1
     }
 
     private func select(_ index: Int) {

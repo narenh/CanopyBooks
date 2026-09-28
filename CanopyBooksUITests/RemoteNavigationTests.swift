@@ -195,6 +195,25 @@ final class RemoteNavigationTests: XCTestCase {
         waitForFocus(on: sentence(4606))
     }
 
+    func testResumesWhereItLeftOff() {
+        // Play from inside sentence 5 (26.2–42.6 s), quit, and relaunch without a start time.
+        launch(at: 30)
+        sleep(3)
+        app.terminate()
+        app.launchArguments = []
+        app.launch()
+        XCTAssertTrue(scrubber.waitForExistence(timeout: 10))
+        sleep(2)
+        // It resumes from the start of that sentence.
+        let resumed = elapsed()
+        XCTAssertTrue(
+            (chapterTime(26)...chapterTime(31)).contains(resumed),
+            "Expected to resume near the start of sentence 5, got \(resumed) s into the chapter"
+        )
+        enterText()
+        waitForFocus(on: sentence(5))
+    }
+
     // MARK: - Helpers
 
     private var focusedSentence: XCUIElement {
