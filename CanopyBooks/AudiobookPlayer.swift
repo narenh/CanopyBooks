@@ -17,6 +17,12 @@ final class AudiobookPlayer {
     let cover: UIImage
     let speeds: [Float] = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
 
+    /// Sorted by position in the book.
+    private(set) var bookmarks: [Bookmark] = [] {
+        didSet {
+            UserDefaults.standard.set(try? JSONEncoder().encode(bookmarks), forKey: "bookmarks.\(book.id)")
+        }
+    }
     private(set) var activeIndex: Int?
     /// The chapter containing the sentence being read.
     private(set) var chapterIndex = 0
@@ -45,6 +51,9 @@ final class AudiobookPlayer {
         (sentences, chapters) = book.loadText()
         cover = UIImage(named: book.coverAsset) ?? UIImage()
         artwork = Self.artwork(cover)
+        if let saved = UserDefaults.standard.data(forKey: "bookmarks.\(book.id)") {
+            bookmarks = (try? JSONDecoder().decode([Bookmark].self, from: saved)) ?? []
+        }
 
         let asset = AVURLAsset(url: book.audioURL)
         player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
@@ -111,6 +120,25 @@ final class AudiobookPlayer {
     /// Jumps to the first sentence of a chapter.
     func play(chapter index: Int) {
         play(sentence: chapters[index].sentences.lowerBound)
+    }
+
+    // MARK: - Bookmarks
+
+    var bookmarkedSentences: Set<Int> {
+        Set(bookmarks.compactMap(sentenceIndex(for:)))
+    }
+
+    func sentenceIndex(for bookmark: Bookmark) -> Int? {
+        sentences.index(at: bookmark.time + 0.001)
+    }
+
+    func toggleBookmark(sentence index: Int) {
+        if bookmarkedSentences.contains(index) {
+            bookmarks.removeAll { sentenceIndex(for: $0) == index }
+        } else {
+            bookmarks.append(Bookmark(time: sentences[index].start, created: .now))
+            bookmarks.sort { $0.time < $1.time }
+        }
     }
 
     func setRate(_ newRate: Float) {

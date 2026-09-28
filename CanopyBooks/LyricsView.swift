@@ -3,6 +3,7 @@ import SwiftUI
 /// Apple Music–style synced text. The sentence at `displayIndex` sits at a fixed anchor near the
 /// top; lines glide into place with a slight top-to-bottom stagger. Every sentence is a button,
 /// so the remote can move through them and click to jump; the focused one gets a highlight.
+/// Press and hold a sentence to bookmark it.
 struct LyricsView: View {
     static let fontSize: CGFloat = 64
 
@@ -13,8 +14,10 @@ struct LyricsView: View {
     let activeIndex: Int?
     /// The sentence to position at the anchor: the one being read, browsed to, or scrubbed to.
     let displayIndex: Int
+    let bookmarked: Set<Int>
     var focus: FocusState<PlayerFocus?>.Binding
     let onSelect: (Int) -> Void
+    let onToggleBookmark: (Int) -> Void
     /// Playback position (whole seconds) and speed. Only read while a sentence taller than the
     /// screen is being read, and only by `ReadingScroll`, so the lines don't redraw every tick.
     let playback: () -> (time: Double, rate: Float)
@@ -24,16 +27,19 @@ struct LyricsView: View {
     @State private var previousDisplayIndex = 0
 
     init(
-        sentences: [Sentence], range: Range<Int>, activeIndex: Int?, displayIndex: Int,
+        sentences: [Sentence], range: Range<Int>, activeIndex: Int?, displayIndex: Int, bookmarked: Set<Int>,
         focus: FocusState<PlayerFocus?>.Binding, onSelect: @escaping (Int) -> Void,
+        onToggleBookmark: @escaping (Int) -> Void,
         playback: @escaping () -> (time: Double, rate: Float)
     ) {
         self.sentences = sentences
         self.range = range
         self.activeIndex = activeIndex
         self.displayIndex = displayIndex
+        self.bookmarked = bookmarked
         self.focus = focus
         self.onSelect = onSelect
+        self.onToggleBookmark = onToggleBookmark
         self.playback = playback
         _heights = State(initialValue: Array(repeating: Self.fontSize * 1.2, count: range.count))
         _previousDisplayIndex = State(initialValue: displayIndex)
@@ -55,9 +61,17 @@ struct LyricsView: View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(range, id: \.self) { i in
                 Button(sentences[i].text) { onSelect(i) }
-                    .buttonStyle(LyricLineStyle(isActive: i == activeIndex))
+                    .buttonStyle(LyricLineStyle(isActive: i == activeIndex, isBookmarked: bookmarked.contains(i)))
+                    .contextMenu {
+                        if bookmarked.contains(i) {
+                            Button("Remove Bookmark", systemImage: "bookmark.slash", role: .destructive) { onToggleBookmark(i) }
+                        } else {
+                            Button("Add Bookmark", systemImage: "bookmark") { onToggleBookmark(i) }
+                        }
+                    }
                     .focused(focus, equals: .sentence(i))
                     .accessibilityIdentifier("sentence-\(i)")
+                    .accessibilityValue(bookmarked.contains(i) ? "Bookmarked" : "")
                     .padding(.bottom, gap(after: i))
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heights[i - range.lowerBound] = $0 }
                     // Every line shares the same shift; only the timing differs per line.
@@ -139,15 +153,17 @@ private struct ReadingScroll: ViewModifier {
 
 private struct LyricLineStyle: ButtonStyle {
     let isActive: Bool
+    let isBookmarked: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        LyricLine(configuration: configuration, isActive: isActive)
+        LyricLine(configuration: configuration, isActive: isActive, isBookmarked: isBookmarked)
     }
 }
 
 private struct LyricLine: View {
     let configuration: ButtonStyleConfiguration
     let isActive: Bool
+    let isBookmarked: Bool
     @Environment(\.isFocused) private var isFocused
 
     var body: some View {
@@ -157,6 +173,15 @@ private struct LyricLine: View {
             .foregroundStyle(.white)
             .opacity(isActive || isFocused ? 1 : 0.3)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .topLeading) {
+                // In the margin, level with the first line.
+                if isBookmarked {
+                    Image(systemName: "bookmark.fill")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundStyle(.white.opacity(isActive || isFocused ? 0.9 : 0.4))
+                        .offset(x: -64, y: 22)
+                }
+            }
             .background {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .fill(.white.opacity(isFocused ? 0.12 : 0))

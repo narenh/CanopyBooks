@@ -1,18 +1,26 @@
 import SwiftUI
 
-/// Progress bar plus chapter, skip, play/pause and speed buttons, sized to sit under the artwork.
+/// Progress bar (as wide as the artwork) plus bookmark, chapter, skip, play/pause and speed
+/// buttons (centred under it, and allowed to run a little wider).
 struct TransportControls: View {
     let model: AudiobookPlayer
     var focus: FocusState<PlayerFocus?>.Binding
     @Binding var scrubTime: Double?
+    let barWidth: CGFloat
+    let onShowBookmarks: () -> Void
 
     var body: some View {
         VStack(spacing: 30) {
             ScrubBar(elapsed: model.elapsed, range: model.chapter.timeRange, scrubTime: $scrubTime, onCommit: model.seek)
+                .frame(width: barWidth)
                 .focused(focus, equals: .scrubber)
                 .accessibilityIdentifier("scrubber")
 
             HStack(spacing: 14) {
+                Button("Bookmarks", systemImage: "bookmark", action: onShowBookmarks)
+                    .focused(focus, equals: .bookmarks)
+                    .accessibilityIdentifier("bookmarks")
+
                 ChapterMenu(model: model)
                     .focused(focus, equals: .chapters)
                     .accessibilityIdentifier("chapters")
@@ -41,6 +49,7 @@ struct TransportControls: View {
             }
             .labelStyle(.iconOnly)
             .buttonBorderShape(.circle)
+            .fixedSize()
             .disabled(scrubTime != nil)
         }
     }
@@ -76,6 +85,7 @@ private struct SpeedMenu: View {
             Text(Self.label(for: model.rate))
                 .font(.system(size: 26, weight: .semibold))
                 .monospacedDigit()
+                .lineLimit(1)
         }
         .buttonBorderShape(.capsule)
     }

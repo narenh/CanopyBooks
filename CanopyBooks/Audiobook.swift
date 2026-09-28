@@ -10,6 +10,13 @@ nonisolated struct Sentence: Sendable {
     let chapter: Int
 }
 
+/// A saved place in a book. Stored by the sentence's start time rather than its index, so it
+/// survives a re-run of the alignment.
+nonisolated struct Bookmark: Codable, Hashable, Sendable {
+    let time: Double
+    let created: Date
+}
+
 /// The spoken sentences of one EPUB section, e.g. "Chapter II".
 nonisolated struct Chapter: Sendable {
     let section: Int

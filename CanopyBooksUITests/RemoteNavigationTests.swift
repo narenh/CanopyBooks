@@ -131,6 +131,7 @@ final class RemoteNavigationTests: XCTestCase {
         sleep(6)
         let gained = elapsed() - start
         XCTAssertGreaterThanOrEqual(gained, 8, "6 s at 1.5× should advance ~9 s, got \(gained)")
+        snapshot("7 speed 1.5x")
 
         // Back from the controls falls through to the system and leaves the app.
         remote.press(.menu)
@@ -204,17 +205,79 @@ final class RemoteNavigationTests: XCTestCase {
         app.launch()
         XCTAssertTrue(scrubber.waitForExistence(timeout: 10))
         sleep(2)
-        // It resumes from the start of that sentence.
+        // It resumes from the start of that sentence (the upper bound allows for a slow launch),
+        // so entering the text lands on sentence 5.
         let resumed = elapsed()
         XCTAssertTrue(
-            (chapterTime(26)...chapterTime(31)).contains(resumed),
+            (chapterTime(26)...chapterTime(40)).contains(resumed),
             "Expected to resume near the start of sentence 5, got \(resumed) s into the chapter"
         )
         enterText()
         waitForFocus(on: sentence(5))
     }
 
+    func testBookmarks() {
+        launch(at: 28)
+        // Pause so sentence 5 stays current.
+        assertClickTogglesPlayback("Focus should start on play/pause")
+        enterText()
+        waitForFocus(on: sentence(5))
+
+        // Press and hold to bookmark sentences 5 and 7.
+        addBookmarkToFocusedSentence()
+        XCTAssertEqual(sentence(5).value as? String, "Bookmarked")
+        XCTAssertEqual(app.buttons["playPause"].label, "Play", "Press and hold shouldn't also start playback")
+        remote.press(.down)
+        remote.press(.down)
+        waitForFocus(on: sentence(7))
+        addBookmarkToFocusedSentence()
+        XCTAssertEqual(sentence(7).value as? String, "Bookmarked")
+        snapshot("12 bookmarked sentences")
+
+        // Back returns to play/pause; the bookmarks button is three to the left.
+        remote.press(.menu)
+        sleep(1)
+        for _ in 0..<3 {
+            remote.press(.left)
+            sleep(1)
+        }
+        remote.press(.select)
+        XCTAssertTrue(app.buttons["bookmark-5"].waitForExistence(timeout: 3), "Bookmarks list should open")
+        XCTAssertTrue(app.buttons["bookmark-7"].exists)
+        snapshot("13 bookmarks")
+
+        // The list opens on the first bookmark; the second jumps to sentence 7 (50.4 s).
+        remote.press(.down)
+        sleep(1)
+        remote.press(.select)
+        sleep(2)
+        XCTAssertFalse(app.buttons["bookmark-7"].exists, "Choosing a bookmark should close the list")
+        XCTAssertGreaterThanOrEqual(elapsed(), chapterTime(50), "Choosing a bookmark should jump to it")
+
+        // Reopen (focus is back on the bookmarks button) and remove the first with press and hold.
+        remote.press(.select)
+        XCTAssertTrue(app.buttons["bookmark-5"].waitForExistence(timeout: 3))
+        remote.press(.select, forDuration: 1.5)
+        XCTAssertTrue(menuItem("Remove Bookmark").waitForExistence(timeout: 3))
+        remote.press(.select)
+        let removed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.buttons["bookmark-5"])
+        XCTAssertEqual(XCTWaiter().wait(for: [removed], timeout: 3), .completed, "Bookmark should be removed")
+        XCTAssertTrue(app.buttons["bookmark-7"].exists)
+    }
+
     // MARK: - Helpers
+
+    /// Context-menu items show up as cells wrapping a labelled element, not as buttons.
+    private func menuItem(_ label: String) -> XCUIElement {
+        app.cells.otherElements.matching(NSPredicate(format: "label == %@", label)).firstMatch
+    }
+
+    private func addBookmarkToFocusedSentence(file: StaticString = #filePath, line: UInt = #line) {
+        remote.press(.select, forDuration: 1.5)
+        XCTAssertTrue(menuItem("Add Bookmark").waitForExistence(timeout: 3), "Press and hold should offer Add Bookmark", file: file, line: line)
+        remote.press(.select)
+        sleep(1)
+    }
 
     private var focusedSentence: XCUIElement {
         app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'sentence-'"))
@@ -228,7 +291,8 @@ final class RemoteNavigationTests: XCTestCase {
     }
 
     private func launch(at seconds: Double) {
-        app.launchArguments = ["-startAt", String(seconds)]
+        // Values in the launch arguments shadow saved defaults, so each test starts with no bookmarks.
+        app.launchArguments = ["-startAt", String(seconds), "-bookmarks.hobbit", ""]
         app.launch()
         XCTAssertTrue(scrubber.waitForExistence(timeout: 10))
         sleep(1)

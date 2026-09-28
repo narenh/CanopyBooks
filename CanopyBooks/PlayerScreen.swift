@@ -3,7 +3,7 @@ import SwiftUI
 /// Everything on screen that can hold focus. Sentences are focusable so the Siri Remote can
 /// move through the text and jump to a line.
 enum PlayerFocus: Hashable {
-    case scrubber, chapters, skipBack, playPause, skipForward, speed
+    case scrubber, bookmarks, chapters, skipBack, playPause, skipForward, speed
     case sentence(Int)
 
     var isSentence: Bool {
@@ -23,6 +23,7 @@ struct PlayerScreen: View {
     @State private var textActivity = 0
     /// Non-nil while the remote is scrubbing the progress bar.
     @State private var scrubTime: Double?
+    @State private var showsBookmarks = false
 
     private var focusedSentence: Int? {
         if case .sentence(let index) = focus { index } else { nil }
@@ -43,7 +44,7 @@ struct PlayerScreen: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ArtworkColumn(model: model, focus: $focus, scrubTime: $scrubTime)
+            ArtworkColumn(model: model, focus: $focus, scrubTime: $scrubTime) { showsBookmarks = true }
                 .frame(width: 839)
                 .focusSection()
             // One chapter at a time keeps the text column to a few hundred lines.
@@ -52,8 +53,10 @@ struct PlayerScreen: View {
                 range: model.chapter.sentences,
                 activeIndex: model.activeIndex,
                 displayIndex: displayIndex,
+                bookmarked: model.bookmarkedSentences,
                 focus: $focus,
                 onSelect: select,
+                onToggleBookmark: { model.toggleBookmark(sentence: $0) },
                 playback: { (model.elapsed, model.rate) }
             )
             .id(model.chapterIndex)
@@ -68,6 +71,9 @@ struct PlayerScreen: View {
         .background { ArtworkBackground(image: model.cover) }
         .ignoresSafeArea()
         .defaultFocus($focus, .playPause)
+        .fullScreenCover(isPresented: $showsBookmarks) {
+            BookmarksView(model: model) { model.play(sentence: $0) }
+        }
         .onPlayPauseCommand(perform: model.togglePlayPause)
         .onExitCommand(perform: exitAction)
         // Focus is never moved to follow playback: a programmatic move can land just after a
@@ -83,6 +89,9 @@ struct PlayerScreen: View {
     }
 
     private func focusChanged(from old: PlayerFocus?, to new: PlayerFocus?) {
+        // Nil while a menu (speed, chapters, a sentence's bookmark menu) is open: leave browsing
+        // and the text where they are, so closing the menu returns to the same place.
+        guard let new else { return }
         let fromText = old?.isSentence == true
         guard case .sentence(let index) = new else {
             isBrowsing = false
@@ -90,14 +99,12 @@ struct PlayerScreen: View {
                 // Left from the text: the bar is marginally nearer, but focus should reach the
                 // end of the button row first.
                 focus = .speed
-            } else if fromText, new == nil {
-                // The focused line went away (a new chapter started).
-                focus = .playPause
             }
             return
         }
         let active = model.activeIndex ?? 0
-        if !fromText, index != active {
+        let fromControls = old.map { !$0.isSentence } ?? false
+        if fromControls, index != active {
             // Arriving from the controls lands on the sentence being read, not the nearest one.
             focus = .sentence(active)
         } else if fromText, index != active {
@@ -131,6 +138,7 @@ private struct ArtworkColumn: View {
     let model: AudiobookPlayer
     var focus: FocusState<PlayerFocus?>.Binding
     @Binding var scrubTime: Double?
+    let onShowBookmarks: () -> Void
 
     private let artworkHeight: CGFloat = 540
 
@@ -165,9 +173,11 @@ private struct ArtworkColumn: View {
             .lineLimit(1)
             .padding(.top, 30)
 
-            TransportControls(model: model, focus: focus, scrubTime: $scrubTime)
-                .frame(width: artworkWidth)
-                .padding(.top, 36)
+            TransportControls(
+                model: model, focus: focus, scrubTime: $scrubTime,
+                barWidth: artworkWidth, onShowBookmarks: onShowBookmarks
+            )
+            .padding(.top, 36)
         }
     }
 }
