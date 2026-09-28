@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Apple Music–style synced text. The sentence at `displayIndex` sits at a fixed anchor near the
 /// top; lines glide into place with a slight top-to-bottom stagger. Every sentence is a button,
-/// so the remote can move through them and click to jump.
+/// so the remote can move through them and click to jump; the focused one gets a highlight.
 struct LyricsView: View {
     static let fontSize: CGFloat = 64
 
@@ -11,7 +11,6 @@ struct LyricsView: View {
     let activeIndex: Int?
     /// The sentence to position at the anchor: the one being read, browsed to, or scrubbed to.
     let displayIndex: Int
-    let isBrowsing: Bool
     var focus: FocusState<PlayerFocus?>.Binding
     let onSelect: (Int) -> Void
 
@@ -20,13 +19,12 @@ struct LyricsView: View {
     @State private var previousDisplayIndex = 0
 
     init(
-        sentences: [Sentence], activeIndex: Int?, displayIndex: Int, isBrowsing: Bool,
+        sentences: [Sentence], activeIndex: Int?, displayIndex: Int,
         focus: FocusState<PlayerFocus?>.Binding, onSelect: @escaping (Int) -> Void
     ) {
         self.sentences = sentences
         self.activeIndex = activeIndex
         self.displayIndex = displayIndex
-        self.isBrowsing = isBrowsing
         self.focus = focus
         self.onSelect = onSelect
         _heights = State(initialValue: Array(repeating: Self.fontSize * 1.2, count: sentences.count))
@@ -48,7 +46,7 @@ struct LyricsView: View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(sentences.indices, id: \.self) { i in
                 Button(sentences[i].text) { onSelect(i) }
-                    .buttonStyle(LyricLineStyle(isActive: i == activeIndex, showsFocus: isBrowsing))
+                    .buttonStyle(LyricLineStyle(isActive: i == activeIndex))
                     .focused(focus, equals: .sentence(i))
                     .accessibilityIdentifier("sentence-\(i)")
                     .padding(.bottom, gap(after: i))
@@ -92,36 +90,32 @@ struct LyricsView: View {
 
 private struct LyricLineStyle: ButtonStyle {
     let isActive: Bool
-    let showsFocus: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        LyricLine(configuration: configuration, isActive: isActive, showsFocus: showsFocus)
+        LyricLine(configuration: configuration, isActive: isActive)
     }
 }
 
 private struct LyricLine: View {
     let configuration: ButtonStyleConfiguration
     let isActive: Bool
-    let showsFocus: Bool
     @Environment(\.isFocused) private var isFocused
 
     var body: some View {
-        // Following playback, focus rides along on the active line and isn't drawn.
-        let highlighted = showsFocus && isFocused
         configuration.label
             .font(.system(size: LyricsView.fontSize, weight: .bold))
             .multilineTextAlignment(.leading)
             .foregroundStyle(.white)
-            .opacity(isActive || highlighted ? 1 : 0.3)
+            .opacity(isActive || isFocused ? 1 : 0.3)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(.white.opacity(highlighted ? 0.12 : 0))
+                    .fill(.white.opacity(isFocused ? 0.12 : 0))
                     .padding(.horizontal, -28)
                     .padding(.vertical, -14)
             }
             .scaleEffect(configuration.isPressed ? 0.97 : 1, anchor: .leading)
-            .animation(.easeOut(duration: 0.2), value: highlighted)
+            .animation(.easeOut(duration: 0.2), value: isFocused)
             .animation(.easeOut(duration: 0.3), value: isActive)
     }
 }

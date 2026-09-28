@@ -19,16 +19,13 @@ struct PlayerScreen: View {
     @FocusState private var focus: PlayerFocus?
     /// True while the user is moving through sentences instead of following playback.
     @State private var isBrowsing = false
-    @State private var browseActivity = 0
+    /// Bumped by remote input in the text column; restarts the idle timer.
+    @State private var textActivity = 0
     /// Non-nil while the remote is scrubbing the progress bar.
     @State private var scrubTime: Double?
 
     private var focusedSentence: Int? {
         if case .sentence(let index) = focus { index } else { nil }
-    }
-
-    private var controlsFocused: Bool {
-        focus.map { !$0.isSentence } ?? false
     }
 
     /// The sentence the text column is positioned on.
@@ -47,7 +44,6 @@ struct PlayerScreen: View {
                 sentences: model.sentences,
                 activeIndex: model.activeIndex,
                 displayIndex: displayIndex,
-                isBrowsing: isBrowsing,
                 focus: $focus,
                 onSelect: select
             )
@@ -59,7 +55,7 @@ struct PlayerScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background { ArtworkBackground(image: model.cover) }
         .ignoresSafeArea()
-        .defaultFocus($focus, .sentence(0))
+        .defaultFocus($focus, .playPause)
         .onPlayPauseCommand(perform: model.togglePlayPause)
         .onExitCommand(perform: exitAction)
         .onChange(of: focus, focusChanged)
@@ -69,53 +65,52 @@ struct PlayerScreen: View {
                 focus = .sentence(model.activeIndex ?? 0)
             }
         }
-        .task(id: browseActivity) {
-            // Drift back to following playback once the remote has been idle for a while.
-            guard isBrowsing else { return }
-            try? await Task.sleep(for: .seconds(12))
-            if !Task.isCancelled { stopBrowsing() }
+        .task(id: textActivity) {
+            // Idle in the text: focus goes back to play/pause so the highlight never lingers.
+            // Browsing gets longer, to leave time to read.
+            guard focus?.isSentence == true else { return }
+            try? await Task.sleep(for: .seconds(isBrowsing ? 12 : 6))
+            if !Task.isCancelled, focus?.isSentence == true { leaveText() }
         }
     }
 
     private func focusChanged(from old: PlayerFocus?, to new: PlayerFocus?) {
+        let fromText = old?.isSentence == true
         guard case .sentence(let index) = new else {
             isBrowsing = false
+            // Left from the text: the bar is marginally nearer, but focus should reach the
+            // end of the button row first.
+            if fromText, new == .scrubber { focus = .speed }
             return
         }
         let active = model.activeIndex ?? 0
-        if old?.isSentence == true {
-            if index != active { isBrowsing = true }
-            if isBrowsing { browseActivity += 1 }
-        } else if index != active {
+        if !fromText {
             // Arriving from the controls lands on the sentence being read, not the nearest one.
-            focus = .sentence(active)
+            if index != active { focus = .sentence(active) }
+            textActivity += 1
+        } else if isBrowsing || index != active {
+            // Moving up or down. (Focus following playback from line to line isn't user input.)
+            isBrowsing = true
+            textActivity += 1
         }
     }
 
-    /// Clicking a sentence you've moved to jumps there; clicking while following playback
-    /// plays/pauses, like the system player.
     private func select(_ index: Int) {
-        if isBrowsing {
-            isBrowsing = false
-            model.play(sentence: index)
-        } else {
-            model.togglePlayPause()
-        }
-    }
-
-    private func stopBrowsing() {
         isBrowsing = false
-        if focus?.isSentence == true {
-            focus = .sentence(model.activeIndex ?? 0)
-        }
+        textActivity += 1
+        model.play(sentence: index)
     }
 
-    /// Back on the remote unwinds scrubbing, then browsing, then the controls; after that it
-    /// falls through to the system and leaves the app.
+    private func leaveText() {
+        isBrowsing = false
+        focus = .playPause
+    }
+
+    /// Back on the remote cancels scrubbing, then returns from the text to play/pause; from the
+    /// controls it falls through to the system and leaves the app.
     private var exitAction: (() -> Void)? {
         if scrubTime != nil { return { scrubTime = nil } }
-        if isBrowsing { return stopBrowsing }
-        if controlsFocused { return { focus = .sentence(model.activeIndex ?? 0) } }
+        if focus?.isSentence == true { return leaveText }
         return nil
     }
 }
