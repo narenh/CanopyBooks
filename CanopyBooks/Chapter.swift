@@ -2,7 +2,7 @@ import Foundation
 
 /// One aligned sentence from the forced-alignment JSON. Extra fields in the file
 /// (confidence scores etc.) are ignored.
-struct Sentence: Decodable {
+nonisolated struct Sentence: Decodable, Sendable {
     let start: Double
     let end: Double
     let text: String
@@ -10,7 +10,7 @@ struct Sentence: Decodable {
 }
 
 /// Everything needed to play one chapter. For the test run, all assets live in the app bundle.
-struct Chapter {
+nonisolated struct Chapter: Sendable {
     let bookTitle: String
     let author: String
     let number: Int
@@ -50,7 +50,7 @@ struct Chapter {
     }
 }
 
-extension [Sentence] {
+nonisolated extension [Sentence] {
     /// Index of the last sentence that has started by `time`, or nil before the first one.
     func index(at time: Double) -> Int? {
         var low = 0, high = count - 1, found: Int?

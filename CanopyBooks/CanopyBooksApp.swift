@@ -7,8 +7,7 @@ struct CanopyBooksApp: App {
 
     var body: some Scene {
         WindowGroup {
-            PlayerContainer(model: model)
-                .ignoresSafeArea()
+            PlayerScreen(model: model)
                 .onChange(of: scenePhase, initial: true) {
                     if scenePhase == .active { model.startIfNeeded() }
                 }

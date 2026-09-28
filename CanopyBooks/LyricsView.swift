@@ -1,45 +1,66 @@
 import SwiftUI
 
-/// Apple Music–style synced text: the active sentence sits at a fixed anchor near the top,
-/// everything else is dimmed, and lines glide into place with a slight top-to-bottom stagger.
+/// Apple Music–style synced text. The sentence at `displayIndex` sits at a fixed anchor near the
+/// top; lines glide into place with a slight top-to-bottom stagger. Every sentence is a button,
+/// so the remote can move through them and click to jump.
 struct LyricsView: View {
+    static let fontSize: CGFloat = 64
+
     let sentences: [Sentence]
+    /// The sentence being read (drawn at full brightness).
     let activeIndex: Int?
-    let fontSize: CGFloat
+    /// The sentence to position at the anchor: the one being read, browsed to, or scrubbed to.
+    let displayIndex: Int
+    let isBrowsing: Bool
+    var focus: FocusState<PlayerFocus?>.Binding
+    let onSelect: (Int) -> Void
 
     @State private var heights: [CGFloat]
-    @State private var previousFocus = 0
+    @State private var containerHeight: CGFloat = 1080
+    @State private var previousDisplayIndex = 0
 
-    init(sentences: [Sentence], activeIndex: Int?, fontSize: CGFloat) {
+    init(
+        sentences: [Sentence], activeIndex: Int?, displayIndex: Int, isBrowsing: Bool,
+        focus: FocusState<PlayerFocus?>.Binding, onSelect: @escaping (Int) -> Void
+    ) {
         self.sentences = sentences
         self.activeIndex = activeIndex
-        self.fontSize = fontSize
-        _heights = State(initialValue: Array(repeating: fontSize * 1.2, count: sentences.count))
+        self.displayIndex = displayIndex
+        self.isBrowsing = isBrowsing
+        self.focus = focus
+        self.onSelect = onSelect
+        _heights = State(initialValue: Array(repeating: Self.fontSize * 1.2, count: sentences.count))
     }
 
-    private var sentenceGap: CGFloat { fontSize * 1.1 }
-    private var paragraphGap: CGFloat { fontSize * 2 }
+    private var sentenceGap: CGFloat { Self.fontSize * 1.1 }
+    private var paragraphGap: CGFloat { Self.fontSize * 2 }
 
     var body: some View {
-        GeometryReader { geo in
-            let focus = activeIndex ?? 0
-            let shift = anchor(for: focus, height: geo.size.height) - top(of: focus)
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(sentences.indices, id: \.self) { i in
-                    LyricLine(text: sentences[i].text, isActive: i == activeIndex, fontSize: fontSize)
-                        .padding(.bottom, gap(after: i))
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heights[i] = $0 }
-                        // Every line shares the same shift; only the timing differs per line.
-                        .offset(y: shift)
-                        .animation(animation(for: i, focus: focus), value: activeIndex)
-                }
+        let shift = anchor(for: displayIndex) - top(of: displayIndex)
+        // The column's own size comes from the parent; the (very tall) text hangs off its top.
+        Color.clear
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { containerHeight = $0 }
+            .overlay(alignment: .top) { lines(shift: shift) }
+            .onChange(of: displayIndex) { previousDisplayIndex = displayIndex }
+    }
+
+    private func lines(shift: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(sentences.indices, id: \.self) { i in
+                Button(sentences[i].text) { onSelect(i) }
+                    .buttonStyle(LyricLineStyle(isActive: i == activeIndex, showsFocus: isBrowsing))
+                    .focused(focus, equals: .sentence(i))
+                    .accessibilityIdentifier("sentence-\(i)")
+                    .padding(.bottom, gap(after: i))
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heights[i] = $0 }
+                    // Every line shares the same shift; only the timing differs per line.
+                    .offset(y: shift)
+                    .animation(animation(for: i), value: displayIndex)
             }
-            .frame(width: geo.size.width, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
-            // Dimmed lines pick up the background colour, like Apple Music's vibrant text.
-            .blendMode(.plusLighter)
         }
-        .onChange(of: activeIndex) { previousFocus = activeIndex ?? 0 }
+        .fixedSize(horizontal: false, vertical: true)
+        // Dimmed lines pick up the background colour, like Apple Music's vibrant text.
+        .blendMode(.plusLighter)
     }
 
     private func gap(after i: Int) -> CGFloat {
@@ -51,34 +72,56 @@ struct LyricsView: View {
         heights[..<i].reduce(0, +)
     }
 
-    /// Where the active sentence's top edge sits. Long sentences are pulled up so they stay on screen.
-    private func anchor(for i: Int, height: CGFloat) -> CGFloat {
+    /// Where the anchored sentence's top edge sits. Long sentences are pulled up so they stay on screen.
+    private func anchor(for i: Int) -> CGFloat {
         let textHeight = heights[i] - gap(after: i)
-        return max(height * 0.08, min(height * 0.3, height * 0.92 - textHeight))
+        return max(containerHeight * 0.08, min(containerHeight * 0.3, containerHeight * 0.92 - textHeight))
     }
 
-    private func animation(for i: Int, focus: Int) -> Animation? {
-        let step = focus - previousFocus
+    private func animation(for i: Int) -> Animation? {
+        let step = displayIndex - previousDisplayIndex
         let glide = Animation.spring(duration: 0.7, bounce: 0.1)
-        // Seeks snap; small backward skips move as one block (a stagger would overlap lines).
+        // Seeks snap; moving back glides as one block (a stagger would overlap lines).
         if abs(step) > 3 { return nil }
         guard step > 0 else { return glide }
         // Lines above the new sentence move first; each line below trails its neighbour.
-        let order = min(max(0, i - focus + 1), 12)
+        let order = min(max(0, i - displayIndex + 1), 12)
         return glide.delay(Double(order) * 0.04)
     }
 }
 
-private struct LyricLine: View {
-    let text: String
+private struct LyricLineStyle: ButtonStyle {
     let isActive: Bool
-    let fontSize: CGFloat
+    let showsFocus: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        LyricLine(configuration: configuration, isActive: isActive, showsFocus: showsFocus)
+    }
+}
+
+private struct LyricLine: View {
+    let configuration: ButtonStyleConfiguration
+    let isActive: Bool
+    let showsFocus: Bool
+    @Environment(\.isFocused) private var isFocused
 
     var body: some View {
-        Text(text)
-            .font(.system(size: fontSize, weight: .bold))
+        // Following playback, focus rides along on the active line and isn't drawn.
+        let highlighted = showsFocus && isFocused
+        configuration.label
+            .font(.system(size: LyricsView.fontSize, weight: .bold))
+            .multilineTextAlignment(.leading)
             .foregroundStyle(.white)
-            .opacity(isActive ? 1 : 0.3)
+            .opacity(isActive || highlighted ? 1 : 0.3)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(.white.opacity(highlighted ? 0.12 : 0))
+                    .padding(.horizontal, -28)
+                    .padding(.vertical, -14)
+            }
+            .scaleEffect(configuration.isPressed ? 0.97 : 1, anchor: .leading)
+            .animation(.easeOut(duration: 0.2), value: highlighted)
+            .animation(.easeOut(duration: 0.3), value: isActive)
     }
 }

@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		C0B0000000000000000000E7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C0B0000000000000000000A9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C0B0000000000000000000A6;
+			remoteInfo = CanopyBooks;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		C0B0000000000000000000A1 /* CanopyBooks.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CanopyBooks.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C0B0000000000000000000E1 /* CanopyBooksUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CanopyBooksUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -29,10 +40,22 @@
 			path = CanopyBooks;
 			sourceTree = "<group>";
 		};
+		C0B0000000000000000000E2 /* CanopyBooksUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CanopyBooksUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		C0B0000000000000000000A3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0B0000000000000000000E3 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -46,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				C0B0000000000000000000A2 /* CanopyBooks */,
+				C0B0000000000000000000E2 /* CanopyBooksUITests */,
 				C0B0000000000000000000A5 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,6 +78,7 @@
 			isa = PBXGroup;
 			children = (
 				C0B0000000000000000000A1 /* CanopyBooks.app */,
+				C0B0000000000000000000E1 /* CanopyBooksUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -83,6 +108,29 @@
 			productReference = C0B0000000000000000000A1 /* CanopyBooks.app */;
 			productType = "com.apple.product-type.application";
 		};
+		C0B0000000000000000000E6 /* CanopyBooksUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0B0000000000000000000B2 /* Build configuration list for PBXNativeTarget "CanopyBooksUITests" */;
+			buildPhases = (
+				C0B0000000000000000000E4 /* Sources */,
+				C0B0000000000000000000E3 /* Frameworks */,
+				C0B0000000000000000000E5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C0B0000000000000000000E8 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C0B0000000000000000000E2 /* CanopyBooksUITests */,
+			);
+			name = CanopyBooksUITests;
+			packageProductDependencies = (
+			);
+			productName = CanopyBooksUITests;
+			productReference = C0B0000000000000000000E1 /* CanopyBooksUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -95,6 +143,10 @@
 				TargetAttributes = {
 					C0B0000000000000000000A6 = {
 						CreatedOnToolsVersion = 27.0;
+					};
+					C0B0000000000000000000E6 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = C0B0000000000000000000A6;
 					};
 				};
 			};
@@ -113,12 +165,20 @@
 			projectRoot = "";
 			targets = (
 				C0B0000000000000000000A6 /* CanopyBooks */,
+				C0B0000000000000000000E6 /* CanopyBooksUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		C0B0000000000000000000A8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0B0000000000000000000E5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -135,7 +195,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C0B0000000000000000000E4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C0B0000000000000000000E8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C0B0000000000000000000A6 /* CanopyBooks */;
+			targetProxy = C0B0000000000000000000E7 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		C0B0000000000000000000C1 /* Debug */ = {
@@ -279,7 +354,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 3;
 			};
 			name = Debug;
@@ -306,8 +381,44 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 3;
+			};
+			name = Release;
+		};
+		C0B0000000000000000000C5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.naren.CanopyBooksUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_TARGET_NAME = CanopyBooks;
+			};
+			name = Debug;
+		};
+		C0B0000000000000000000C6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.naren.CanopyBooksUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_TARGET_NAME = CanopyBooks;
 			};
 			name = Release;
 		};
@@ -328,6 +439,15 @@
 			buildConfigurations = (
 				C0B0000000000000000000C3 /* Debug */,
 				C0B0000000000000000000C4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C0B0000000000000000000B2 /* Build configuration list for PBXNativeTarget "CanopyBooksUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0B0000000000000000000C5 /* Debug */,
+				C0B0000000000000000000C6 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
