@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Progress bar plus skip, play/pause and speed buttons, sized to sit under the artwork.
+/// Progress bar plus chapter, skip, play/pause and speed buttons, sized to sit under the artwork.
 struct TransportControls: View {
     let model: AudiobookPlayer
     var focus: FocusState<PlayerFocus?>.Binding
@@ -8,11 +8,15 @@ struct TransportControls: View {
 
     var body: some View {
         VStack(spacing: 30) {
-            ScrubBar(elapsed: model.elapsed, duration: model.duration, scrubTime: $scrubTime, onCommit: model.seek)
+            ScrubBar(elapsed: model.elapsed, range: model.chapter.timeRange, scrubTime: $scrubTime, onCommit: model.seek)
                 .focused(focus, equals: .scrubber)
                 .accessibilityIdentifier("scrubber")
 
-            HStack(spacing: 20) {
+            HStack(spacing: 14) {
+                ChapterMenu(model: model)
+                    .focused(focus, equals: .chapters)
+                    .accessibilityIdentifier("chapters")
+
                 Button("Back \(Int(AudiobookPlayer.skipInterval)) Seconds", systemImage: "gobackward.15") {
                     model.skip(by: -AudiobookPlayer.skipInterval)
                 }
@@ -42,6 +46,22 @@ struct TransportControls: View {
     }
 }
 
+private struct ChapterMenu: View {
+    let model: AudiobookPlayer
+
+    var body: some View {
+        Menu {
+            Picker("Chapter", selection: Binding(get: { model.chapterIndex }, set: model.play(chapter:))) {
+                ForEach(model.chapters.indices, id: \.self) { index in
+                    Text(model.chapters[index].title).tag(index)
+                }
+            }
+        } label: {
+            Label("Chapters", systemImage: "list.bullet")
+        }
+    }
+}
+
 private struct SpeedMenu: View {
     let model: AudiobookPlayer
 
@@ -66,11 +86,13 @@ private struct SpeedMenu: View {
     }
 }
 
-/// Click to start scrubbing, left/right to move 10 seconds, click again to jump there.
-/// Back cancels (handled by `PlayerScreen`).
+/// Progress through the current chapter. Click to start scrubbing, left/right to move 10 seconds,
+/// click again to jump there. Back cancels (handled by `PlayerScreen`).
 struct ScrubBar: View {
+    /// Position in the book.
     let elapsed: Double
-    let duration: Double
+    /// The part of the book the bar spans.
+    let range: ClosedRange<Double>
     @Binding var scrubTime: Double?
     let onCommit: (Double) -> Void
 
@@ -87,12 +109,16 @@ struct ScrubBar: View {
         } label: {
             Text("Playback Position")
         }
-        .buttonStyle(ScrubBarStyle(time: scrubTime ?? elapsed, duration: duration, isScrubbing: scrubTime != nil))
+        .buttonStyle(ScrubBarStyle(
+            time: max(0, (scrubTime ?? elapsed) - range.lowerBound),
+            duration: range.upperBound - range.lowerBound,
+            isScrubbing: scrubTime != nil
+        ))
         .onMoveCommand { direction in
             guard let current = scrubTime else { return }
             switch direction {
-            case .left: scrubTime = max(0, current - Self.step)
-            case .right: scrubTime = min(duration, current + Self.step)
+            case .left: scrubTime = max(range.lowerBound, current - Self.step)
+            case .right: scrubTime = min(range.upperBound, current + Self.step)
             default: break
             }
         }

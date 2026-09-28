@@ -11,12 +11,15 @@ final class AudiobookPlayer {
     static let highlightLead = 0.15
     static let skipInterval = 15.0
 
-    let chapter: Chapter
+    let book: Audiobook
     let sentences: [Sentence]
+    let chapters: [Chapter]
     let cover: UIImage
     let speeds: [Float] = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
 
     private(set) var activeIndex: Int?
+    /// The chapter containing the sentence being read.
+    private(set) var chapterIndex = 0
     private(set) var isPlaying = false
     /// Whole seconds, so progress views redraw once a second rather than on every tick.
     private(set) var elapsed = 0.0
@@ -25,21 +28,24 @@ final class AudiobookPlayer {
 
     @ObservationIgnored private let player: AVPlayer
     @ObservationIgnored private let nowPlaying: MPNowPlayingSession
+    @ObservationIgnored private let artwork: MPMediaItemArtwork
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var hasStarted = false
 
-    init(chapter: Chapter) {
-        self.chapter = chapter
-        sentences = chapter.loadSentences()
-        cover = UIImage(named: chapter.coverAsset) ?? UIImage()
+    var chapter: Chapter { chapters[chapterIndex] }
 
-        let asset = AVURLAsset(url: chapter.audioURL)
-        let item = AVPlayerItem(asset: asset)
-        item.nowPlayingInfo = Self.nowPlayingInfo(for: chapter, cover: cover)
-        player = AVPlayer(playerItem: item)
+    init(book: Audiobook) {
+        self.book = book
+        (sentences, chapters) = book.loadText()
+        cover = UIImage(named: book.coverAsset) ?? UIImage()
+        artwork = Self.artwork(cover)
+
+        let asset = AVURLAsset(url: book.audioURL)
+        player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
 
         nowPlaying = MPNowPlayingSession(players: [player])
         nowPlaying.automaticallyPublishesNowPlayingInfo = true
+        updateNowPlayingInfo()
         registerRemoteCommands()
 
         // Fires on the interval, and also whenever time jumps or playback starts/stops.
@@ -62,7 +68,7 @@ final class AudiobookPlayer {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
         nowPlaying.becomeActiveIfPossible(completion: nil)
         #if DEBUG
-        // `xcrun simctl launch <device> com.naren.CanopyBooks -startAt 1000` starts mid-chapter.
+        // `xcrun simctl launch <device> com.naren.CanopyBooks -startAt 1000` starts 1000 s in.
         let startAt = UserDefaults.standard.double(forKey: "startAt")
         if startAt > 0 { seek(to: startAt) }
         #endif
@@ -87,8 +93,13 @@ final class AudiobookPlayer {
     func play(sentence index: Int) {
         // A hair early so the first word isn't clipped; still inside `highlightLead`.
         seek(to: sentences[index].start - 0.1)
-        activeIndex = index
+        setActive(index)
         player.play()
+    }
+
+    /// Jumps to the first sentence of a chapter.
+    func play(chapter index: Int) {
+        play(sentence: chapters[index].sentences.lowerBound)
     }
 
     func setRate(_ newRate: Float) {
@@ -98,12 +109,21 @@ final class AudiobookPlayer {
     }
 
     private func sync(to seconds: Double) {
-        let index = sentences.index(at: seconds + Self.highlightLead)
-        if index != activeIndex { activeIndex = index }
+        setActive(sentences.index(at: seconds + Self.highlightLead))
         let whole = seconds.rounded(.down)
         if whole != elapsed { elapsed = whole }
         let playing = player.rate != 0
         if playing != isPlaying { isPlaying = playing }
+    }
+
+    private func setActive(_ index: Int?) {
+        guard index != activeIndex else { return }
+        activeIndex = index
+        let chapter = index.map { sentences[$0].chapter } ?? 0
+        if chapter != chapterIndex {
+            chapterIndex = chapter
+            updateNowPlayingInfo()
+        }
     }
 
     // MARK: - Now Playing
@@ -144,12 +164,13 @@ final class AudiobookPlayer {
         }
     }
 
-    private static func nowPlayingInfo(for chapter: Chapter, cover: UIImage) -> [String: Any] {
-        [
-            MPMediaItemPropertyTitle: "Chapter \(chapter.number): \(chapter.title)",
-            MPMediaItemPropertyAlbumTitle: chapter.bookTitle,
-            MPMediaItemPropertyArtist: chapter.author,
-            MPMediaItemPropertyArtwork: artwork(cover),
+    /// Published automatically by the session; the title follows the current chapter.
+    private func updateNowPlayingInfo() {
+        player.currentItem?.nowPlayingInfo = [
+            MPMediaItemPropertyTitle: chapter.title,
+            MPMediaItemPropertyAlbumTitle: book.title,
+            MPMediaItemPropertyArtist: book.author,
+            MPMediaItemPropertyArtwork: artwork,
             MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
         ]
     }

@@ -4,7 +4,8 @@ DerivedData/
 build/
 *.xcuserstate
 
-# Chapter audio is ~107 MB (over GitHub's 100 MB file limit); copy it in locally.
+# Book audio is ~600 MB (over GitHub's 100 MB file limit); copy it in locally from ~/Audiobooks.
+CanopyBooks/Resources/*.mp3
 CanopyBooks/Resources/*.wav
 
 .DS_Store

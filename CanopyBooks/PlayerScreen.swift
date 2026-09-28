@@ -3,7 +3,7 @@ import SwiftUI
 /// Everything on screen that can hold focus. Sentences are focusable so the Siri Remote can
 /// move through the text and jump to a line.
 enum PlayerFocus: Hashable {
-    case scrubber, skipBack, playPause, skipForward, speed
+    case scrubber, chapters, skipBack, playPause, skipForward, speed
     case sentence(Int)
 
     var isSentence: Bool {
@@ -28,11 +28,17 @@ struct PlayerScreen: View {
         if case .sentence(let index) = focus { index } else { nil }
     }
 
-    /// The sentence the text column is positioned on.
+    /// The sentence the text column is positioned on, kept within the chapter on screen.
     private var displayIndex: Int {
-        if let scrubTime { return model.sentences.index(at: scrubTime) ?? 0 }
-        if isBrowsing, let focusedSentence { return focusedSentence }
-        return model.activeIndex ?? 0
+        let index = if let scrubTime {
+            model.sentences.index(at: scrubTime) ?? 0
+        } else if isBrowsing, let focusedSentence {
+            focusedSentence
+        } else {
+            model.activeIndex ?? 0
+        }
+        let chapter = model.chapter.sentences
+        return min(max(index, chapter.lowerBound), chapter.upperBound - 1)
     }
 
     var body: some View {
@@ -40,19 +46,24 @@ struct PlayerScreen: View {
             ArtworkColumn(model: model, focus: $focus, scrubTime: $scrubTime)
                 .frame(width: 839)
                 .focusSection()
+            // One chapter at a time keeps the text column to a few hundred lines.
             LyricsView(
                 sentences: model.sentences,
+                range: model.chapter.sentences,
                 activeIndex: model.activeIndex,
                 displayIndex: displayIndex,
                 focus: $focus,
                 onSelect: select
             )
+            .id(model.chapterIndex)
+            .transition(.opacity)
             .frame(width: 973)
             .focusSection()
             .disabled(scrubTime != nil)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.easeInOut(duration: 0.4), value: model.chapterIndex)
         .background { ArtworkBackground(image: model.cover) }
         .ignoresSafeArea()
         .defaultFocus($focus, .playPause)
@@ -78,9 +89,14 @@ struct PlayerScreen: View {
         let fromText = old?.isSentence == true
         guard case .sentence(let index) = new else {
             isBrowsing = false
-            // Left from the text: the bar is marginally nearer, but focus should reach the
-            // end of the button row first.
-            if fromText, new == .scrubber { focus = .speed }
+            if fromText, new == .scrubber {
+                // Left from the text: the bar is marginally nearer, but focus should reach the
+                // end of the button row first.
+                focus = .speed
+            } else if fromText, new == nil {
+                // The focused line went away (a new chapter started).
+                focus = .playPause
+            }
             return
         }
         let active = model.activeIndex ?? 0
@@ -140,11 +156,12 @@ private struct ArtworkColumn: View {
                 HStack(spacing: 10) {
                     PlayingIndicator(isPlaying: model.isPlaying)
                     Text(model.chapter.title)
+                        .contentTransition(.opacity)
                 }
                 .foregroundStyle(.white)
                 .font(.system(size: 28, weight: .semibold))
 
-                Text("\(model.chapter.bookTitle) · \(model.chapter.author)")
+                Text("\(model.book.title) · \(model.book.author)")
                     .font(.system(size: 28, weight: .medium))
                     .foregroundStyle(.white.opacity(0.5))
                     .blendMode(.plusLighter)

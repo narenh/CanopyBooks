@@ -7,6 +7,8 @@ struct LyricsView: View {
     static let fontSize: CGFloat = 64
 
     let sentences: [Sentence]
+    /// The sentences shown (one chapter); indices below are into `sentences`.
+    let range: Range<Int>
     /// The sentence being read (drawn at full brightness).
     let activeIndex: Int?
     /// The sentence to position at the anchor: the one being read, browsed to, or scrubbed to.
@@ -19,15 +21,17 @@ struct LyricsView: View {
     @State private var previousDisplayIndex = 0
 
     init(
-        sentences: [Sentence], activeIndex: Int?, displayIndex: Int,
+        sentences: [Sentence], range: Range<Int>, activeIndex: Int?, displayIndex: Int,
         focus: FocusState<PlayerFocus?>.Binding, onSelect: @escaping (Int) -> Void
     ) {
         self.sentences = sentences
+        self.range = range
         self.activeIndex = activeIndex
         self.displayIndex = displayIndex
         self.focus = focus
         self.onSelect = onSelect
-        _heights = State(initialValue: Array(repeating: Self.fontSize * 1.2, count: sentences.count))
+        _heights = State(initialValue: Array(repeating: Self.fontSize * 1.2, count: range.count))
+        _previousDisplayIndex = State(initialValue: displayIndex)
     }
 
     private var sentenceGap: CGFloat { Self.fontSize * 1.1 }
@@ -44,13 +48,13 @@ struct LyricsView: View {
 
     private func lines(shift: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(sentences.indices, id: \.self) { i in
+            ForEach(range, id: \.self) { i in
                 Button(sentences[i].text) { onSelect(i) }
                     .buttonStyle(LyricLineStyle(isActive: i == activeIndex))
                     .focused(focus, equals: .sentence(i))
                     .accessibilityIdentifier("sentence-\(i)")
                     .padding(.bottom, gap(after: i))
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heights[i] = $0 }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heights[i - range.lowerBound] = $0 }
                     // Every line shares the same shift; only the timing differs per line.
                     .offset(y: shift)
                     .animation(animation(for: i), value: displayIndex)
@@ -62,17 +66,17 @@ struct LyricsView: View {
     }
 
     private func gap(after i: Int) -> CGFloat {
-        guard i + 1 < sentences.count else { return 0 }
+        guard i + 1 < range.upperBound else { return 0 }
         return sentences[i + 1].para == sentences[i].para ? sentenceGap : paragraphGap
     }
 
     private func top(of i: Int) -> CGFloat {
-        heights[..<i].reduce(0, +)
+        heights[..<(i - range.lowerBound)].reduce(0, +)
     }
 
     /// Where the anchored sentence's top edge sits. Long sentences are pulled up so they stay on screen.
     private func anchor(for i: Int) -> CGFloat {
-        let textHeight = heights[i] - gap(after: i)
+        let textHeight = heights[i - range.lowerBound] - gap(after: i)
         return max(containerHeight * 0.08, min(containerHeight * 0.3, containerHeight * 0.92 - textHeight))
     }
 
