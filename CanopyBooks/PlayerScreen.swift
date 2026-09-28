@@ -53,7 +53,8 @@ struct PlayerScreen: View {
                 activeIndex: model.activeIndex,
                 displayIndex: displayIndex,
                 focus: $focus,
-                onSelect: select
+                onSelect: select,
+                playback: { (model.elapsed, model.rate) }
             )
             .id(model.chapterIndex)
             .transition(.opacity)

@@ -15,6 +15,9 @@ struct LyricsView: View {
     let displayIndex: Int
     var focus: FocusState<PlayerFocus?>.Binding
     let onSelect: (Int) -> Void
+    /// Playback position (whole seconds) and speed. Only read while a sentence taller than the
+    /// screen is being read, and only by `ReadingScroll`, so the lines don't redraw every tick.
+    let playback: () -> (time: Double, rate: Float)
 
     @State private var heights: [CGFloat]
     @State private var containerHeight: CGFloat = 1080
@@ -22,7 +25,8 @@ struct LyricsView: View {
 
     init(
         sentences: [Sentence], range: Range<Int>, activeIndex: Int?, displayIndex: Int,
-        focus: FocusState<PlayerFocus?>.Binding, onSelect: @escaping (Int) -> Void
+        focus: FocusState<PlayerFocus?>.Binding, onSelect: @escaping (Int) -> Void,
+        playback: @escaping () -> (time: Double, rate: Float)
     ) {
         self.sentences = sentences
         self.range = range
@@ -30,6 +34,7 @@ struct LyricsView: View {
         self.displayIndex = displayIndex
         self.focus = focus
         self.onSelect = onSelect
+        self.playback = playback
         _heights = State(initialValue: Array(repeating: Self.fontSize * 1.2, count: range.count))
         _previousDisplayIndex = State(initialValue: displayIndex)
     }
@@ -61,6 +66,12 @@ struct LyricsView: View {
             }
         }
         .fixedSize(horizontal: false, vertical: true)
+        .modifier(ReadingScroll(
+            sentence: displayIndex,
+            timing: displayIndex == activeIndex ? sentences[displayIndex] : nil,
+            overflow: overflow(of: displayIndex),
+            playback: playback
+        ))
         // Dimmed lines pick up the background colour, like Apple Music's vibrant text.
         .blendMode(.plusLighter)
     }
@@ -74,10 +85,18 @@ struct LyricsView: View {
         heights[..<(i - range.lowerBound)].reduce(0, +)
     }
 
-    /// Where the anchored sentence's top edge sits. Long sentences are pulled up so they stay on screen.
+    private func textHeight(of i: Int) -> CGFloat {
+        heights[i - range.lowerBound] - gap(after: i)
+    }
+
+    /// Where the anchored sentence's top edge sits. Long sentences are pulled up so more fits.
     private func anchor(for i: Int) -> CGFloat {
-        let textHeight = heights[i - range.lowerBound] - gap(after: i)
-        return max(containerHeight * 0.08, min(containerHeight * 0.3, containerHeight * 0.92 - textHeight))
+        max(containerHeight * 0.08, min(containerHeight * 0.3, containerHeight * 0.92 - textHeight(of: i)))
+    }
+
+    /// How much of a sentence hangs below the screen when its top is at the anchor.
+    private func overflow(of i: Int) -> CGFloat {
+        max(0, anchor(for: i) + textHeight(of: i) - containerHeight * 0.92)
     }
 
     private func animation(for i: Int) -> Animation? {
@@ -89,6 +108,32 @@ struct LyricsView: View {
         // Lines above the new sentence move first; each line below trails its neighbour.
         let order = min(max(0, i - displayIndex + 1), 12)
         return glide.delay(Double(order) * 0.04)
+    }
+}
+
+/// Scrolls a sentence that's taller than the screen while it's read: its top starts at the
+/// anchor and its last line reaches the bottom as the sentence ends. There are no word timings,
+/// so this assumes an even pace through the sentence.
+private struct ReadingScroll: ViewModifier {
+    let sentence: Int
+    /// The sentence's timing when it's the one being read; nil while browsing to another.
+    let timing: Sentence?
+    let overflow: CGFloat
+    let playback: () -> (time: Double, rate: Float)
+
+    func body(content: Content) -> some View {
+        var progress = 0.0
+        var tick = 0.0
+        var rate: Float = 1
+        if overflow > 0, let timing {
+            (tick, rate) = playback()
+            // The time is whole seconds; aim for where playback will be at the next tick.
+            progress = min(1, max(0, (tick + 1 - timing.start) / (timing.end - timing.start)))
+        }
+        return content
+            .offset(y: -overflow * progress)
+            .animation(.spring(duration: 0.7, bounce: 0.1), value: sentence)
+            .animation(.linear(duration: 1 / Double(max(rate, 0.25))), value: tick)
     }
 }
 

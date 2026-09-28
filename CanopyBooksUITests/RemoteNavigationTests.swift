@@ -168,6 +168,33 @@ final class RemoteNavigationTests: XCTestCase {
         snapshot("9 chapter II")
     }
 
+    func testSentenceTallerThanScreen() {
+        // Sentence 4605 (28073.6–28129.8 s) is about two screens tall. Start on 4602 and pause so
+        // playback stays put.
+        launch(at: 28048)
+        assertClickTogglesPlayback("Focus should start on play/pause")
+        enterText()
+        waitForFocus(on: sentence(4602))
+
+        // Browse down through the tall sentence and past it.
+        for next in 4603...4605 {
+            remote.press(.down)
+            waitForFocus(on: sentence(next))
+        }
+        snapshot("10 browsing to a tall sentence")
+        remote.press(.down)
+        waitForFocus(on: sentence(4606))
+        remote.press(.up)
+        waitForFocus(on: sentence(4605))
+
+        // Clicking it plays it; moving down from it still reaches the next sentence.
+        remote.press(.select)
+        sleep(3)
+        snapshot("11 reading a tall sentence")
+        remote.press(.down)
+        waitForFocus(on: sentence(4606))
+    }
+
     // MARK: - Helpers
 
     private var focusedSentence: XCUIElement {
