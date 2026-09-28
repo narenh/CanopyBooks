@@ -1,0 +1,10 @@
+# Xcode
+xcuserdata/
+DerivedData/
+build/
+*.xcuserstate
+
+# Chapter audio is ~107 MB (over GitHub's 100 MB file limit); copy it in locally.
+CanopyBooks/Resources/*.wav
+
+.DS_Store
