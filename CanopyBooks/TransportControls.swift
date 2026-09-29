@@ -109,6 +109,7 @@ struct ScrubBar: View {
     private static let step = 10.0
 
     var body: some View {
+        let time = max(0, (scrubTime ?? elapsed) - range.lowerBound)
         Button {
             if let scrubTime {
                 onCommit(scrubTime)
@@ -120,10 +121,11 @@ struct ScrubBar: View {
             Text("Playback Position")
         }
         .buttonStyle(ScrubBarStyle(
-            time: max(0, (scrubTime ?? elapsed) - range.lowerBound),
+            time: time,
             duration: range.upperBound - range.lowerBound,
             isScrubbing: scrubTime != nil
         ))
+        .accessibilityValue(ScrubBarBody.format(time))
         .onMoveCommand { direction in
             guard let current = scrubTime else { return }
             switch direction {
@@ -174,11 +176,9 @@ private struct ScrubBarBody: View {
         .frame(height: 54, alignment: .top)
         .blendMode(.plusLighter)
         .animation(.easeOut(duration: 0.2), value: isFocused)
-        .accessibilityLabel("Playback Position")
-        .accessibilityValue(Self.format(time))
     }
 
-    private static func format(_ seconds: Double) -> String {
+    fileprivate static func format(_ seconds: Double) -> String {
         let pattern: Duration.TimeFormatStyle.Pattern = seconds >= 3600 ? .hourMinuteSecond : .minuteSecond
         return Duration.seconds(seconds.rounded(.down)).formatted(.time(pattern: pattern))
     }

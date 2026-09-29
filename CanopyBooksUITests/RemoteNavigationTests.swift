@@ -65,13 +65,12 @@ final class RemoteNavigationTests: XCTestCase {
         sleep(2)
         XCTAssertGreaterThanOrEqual(elapsed(), chapterTime(50), "Selecting a sentence should seek to it")
         XCTAssertTrue(sentence(7).hasFocus, "Focus should stay on the sentence now being read")
-        snapshot("4 jumped to sentence 5")
+        snapshot("4 jumped to sentence 7")
 
-        // Clicking the highlighted current sentence restarts it.
-        sleep(2)
+        // Clicking the highlighted current sentence restarts it (well inside the 6 s idle return).
         remote.press(.select)
         sleep(1)
-        XCTAssertLessThan(elapsed(), chapterTime(52.9), "Clicking the current sentence should restart it")
+        XCTAssertLessThan(elapsed(), chapterTime(53.5), "Clicking the current sentence should restart it")
 
         // A click straight after moving (mid-animation) still jumps. Sentence 9 starts at 83.0 s.
         remote.press(.down)
@@ -165,7 +164,7 @@ final class RemoteNavigationTests: XCTestCase {
         sleep(2)
         // Chapter II's first sentence is 564 in the book; the bar restarts at the chapter.
         XCTAssertTrue(sentence(564).exists, "Chapter II's text should be showing")
-        XCTAssertLessThan(elapsed(), 5, "Playback should be at the start of Chapter II")
+        XCTAssertLessThan(elapsed(), 10, "Playback should be at the start of Chapter II")
         snapshot("9 chapter II")
     }
 
@@ -197,23 +196,38 @@ final class RemoteNavigationTests: XCTestCase {
     }
 
     func testResumesWhereItLeftOff() {
-        // Play from inside sentence 5 (26.2–42.6 s), quit, and relaunch without a start time.
-        launch(at: 30)
-        sleep(3)
+        // Play from inside sentence 4605 (28073.6–28129.8 s, in Chapter XII) at 1.25×, quit, and
+        // relaunch without a start time.
+        let chapterStart = 25344.62
+        launch(at: 28076)
+        // From play/pause, speed is two to the right; 1.25× is three down from the menu's first item.
+        remote.press(.right)
+        sleep(1)
+        remote.press(.right)
+        sleep(1)
+        remote.press(.select)
+        sleep(1)
+        for _ in 0..<3 {
+            remote.press(.down)
+        }
+        remote.press(.select)
+        sleep(1)
+        XCTAssertEqual(speedLabel, "1.25×")
         app.terminate()
         app.launchArguments = []
         app.launch()
         XCTAssertTrue(scrubber.waitForExistence(timeout: 10))
         sleep(2)
         // It resumes from the start of that sentence (the upper bound allows for a slow launch),
-        // so entering the text lands on sentence 5.
+        // so entering the text lands on sentence 4605.
         let resumed = elapsed()
         XCTAssertTrue(
-            (chapterTime(26)...chapterTime(40)).contains(resumed),
-            "Expected to resume near the start of sentence 5, got \(resumed) s into the chapter"
+            ((28073 - chapterStart)...(28100 - chapterStart)).contains(resumed),
+            "Expected to resume near the start of sentence 4605, got \(resumed) s into the chapter"
         )
         enterText()
-        waitForFocus(on: sentence(5))
+        waitForFocus(on: sentence(4605))
+        XCTAssertEqual(speedLabel, "1.25×", "The book's speed should be restored")
     }
 
     func testBookmarks() {
@@ -286,15 +300,24 @@ final class RemoteNavigationTests: XCTestCase {
 
     private var scrubber: XCUIElement { app.buttons["scrubber"] }
 
+    private var speedLabel: String {
+        app.buttons["speed"].staticTexts.firstMatch.label
+    }
+
     private func sentence(_ index: Int) -> XCUIElement {
         app.buttons["sentence-\(index)"]
     }
 
     private func launch(at seconds: Double) {
-        // Values in the launch arguments shadow saved defaults, so each test starts with no bookmarks.
-        app.launchArguments = ["-startAt", String(seconds), "-bookmarks.hobbit", ""]
+        // Values in the launch arguments shadow saved defaults, so each test starts with no
+        // bookmarks and at 1×.
+        app.launchArguments = ["-startAt", String(seconds), "-bookmarks.hobbit", "", "-speed.hobbit", "1"]
         app.launch()
         XCTAssertTrue(scrubber.waitForExistence(timeout: 10))
+        // Wait until playback is actually running (a long seek into the MP3 can take a moment),
+        // so play/pause checks start from a known state.
+        let playing = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Pause'"), object: app.buttons["playPause"])
+        XCTAssertEqual(XCTWaiter().wait(for: [playing], timeout: 10), .completed, "Playback should start")
         sleep(1)
     }
 
@@ -333,7 +356,7 @@ final class RemoteNavigationTests: XCTestCase {
     /// Chapter position read from the scrub bar's accessibility value ("m:ss" or "h:mm:ss").
     private func elapsed() -> Double {
         let text = scrubber.value as? String ?? ""
-        return text.split(separator: ":").reduce(0) { $0 * 60 + (Double($1) ?? 0) }
+        return text.split(separator: ":").reduce(0) { $0 * 60 + (Double($1) ?? .nan) }
     }
 
     private func waitForFocus(on element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {

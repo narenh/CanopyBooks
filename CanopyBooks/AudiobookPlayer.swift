@@ -63,6 +63,13 @@ final class AudiobookPlayer {
         updateNowPlayingInfo()
         registerRemoteCommands()
 
+        // The speed chosen for this book last time; `play()` uses the player's default rate.
+        let savedRate = UserDefaults.standard.float(forKey: "speed.\(book.id)")
+        if speeds.contains(savedRate) {
+            rate = savedRate
+            player.defaultRate = savedRate
+        }
+
         // Fires on the interval, and also whenever time jumps or playback starts/stops.
         timeObserver = player.addPeriodicTimeObserver(
             forInterval: CMTime(value: 1, timescale: 20), queue: .main
@@ -145,6 +152,7 @@ final class AudiobookPlayer {
         player.defaultRate = newRate
         if player.rate != 0 { player.rate = newRate }
         rate = newRate
+        UserDefaults.standard.set(newRate, forKey: "speed.\(book.id)")
     }
 
     private func sync(to seconds: Double) {
