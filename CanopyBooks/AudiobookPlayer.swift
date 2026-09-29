@@ -156,7 +156,11 @@ final class AudiobookPlayer {
             if hasStarted { savedPosition = seconds }
         }
         let playing = player.rate != 0
-        if playing != isPlaying { isPlaying = playing }
+        if playing != isPlaying {
+            isPlaying = playing
+            // No screensaver while listening; paused, the usual idle timeout applies.
+            UIApplication.shared.isIdleTimerDisabled = playing
+        }
     }
 
     private func setActive(_ index: Int?) {
